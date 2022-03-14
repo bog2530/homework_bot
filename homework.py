@@ -106,7 +106,7 @@ def main():
         logging.critical(message)
         exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time()) - 10000000
+    current_timestamp = int(time.time())
     current_message = None
     current_error = None
     while True:
