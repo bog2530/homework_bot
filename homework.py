@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import sys
 from http import HTTPStatus
 
 import requests
@@ -14,8 +15,7 @@ load_dotenv()
 logging.basicConfig(
     format='%(asctime)s - [%(levelname)s] - %(message)s',
     level=logging.INFO,
-    filename='bot.log',
-    filemode='a',
+    stream=sys.stdout,
 )
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
