@@ -46,7 +46,7 @@ def get_api_answer(current_timestamp):
     params = {'from_date': timestamp}
     try:
         message = (
-            'Параметры запроса'
+            'Параметры запроса: '
             f'URL: {ENDPOINT} '
             f'HEADERS: {HEADERS} '
             f'PARAMS: {params} '
