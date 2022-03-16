@@ -12,12 +12,6 @@ from exception import BotTaskError
 
 load_dotenv()
 
-logging.basicConfig(
-    format='%(asctime)s - [%(levelname)s] - %(message)s',
-    level=logging.INFO,
-    stream=sys.stdout,
-)
-
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -37,11 +31,11 @@ HOMEWORK_STATUSES = {
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
     try:
+        logging.info(f'Сообщение отправлено: {message}')
         bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=message,
         )
-        logging.info(f'Сообщение отправлено: {message}')
     except telegram.error.TelegramError as error:
         raise BotTaskError(f'Ошибка: {error}. При отправке: {message}.')
 
@@ -51,6 +45,13 @@ def get_api_answer(current_timestamp):
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
+        message = (
+            'Параметры запроса'
+            f'URL: {ENDPOINT} '
+            f'HEADERS: {HEADERS} '
+            f'PARAMS: {params} '
+        )
+        logging.info(message)
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         logging.info(response.status_code)
         if response.status_code != HTTPStatus.OK:
@@ -68,10 +69,10 @@ def check_response(response):
     if not isinstance(response, dict):
         message = 'Ответ API не является словарем.'
         raise TypeError(message)
-    homeworks = response.get('homeworks')
-    if homeworks is None:
+    if 'homeworks' not in response:
         message = 'Нет списка домашних работ.'
         raise BotTaskError(message)
+    homeworks = response.get('homeworks')
     if not isinstance(homeworks, list):
         message = 'Homework Не является списком.'
         raise BotTaskError(message)
@@ -80,23 +81,24 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе."""
-    homework_name = homework.get('homework_name')
-    homework_status = homework.get('status')
-    if homework_name is None:
+    if 'homework_name' not in homework:
         message = 'Отсутствует название работы.'
         raise KeyError(message)
-    verdict = HOMEWORK_STATUSES.get(homework_status)
-    if verdict is None:
+    homework_name = homework.get('homework_name')
+    if 'status' not in homework:
         message = 'Отсутствует статус работы.'
         raise KeyError(message)
+    homework_status = homework.get('status')
+    if homework_status not in HOMEWORK_STATUSES:
+        message = 'Неизвестный статус работы.'
+        raise KeyError(message)
+    verdict = HOMEWORK_STATUSES.get(homework_status)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
-    if (TELEGRAM_TOKEN and PRACTICUM_TOKEN and TELEGRAM_CHAT_ID) is None:
-        return False
-    return True
+    return all([TELEGRAM_TOKEN, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def main():
@@ -106,12 +108,8 @@ def main():
         logging.critical(message)
         exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    start = 'START'
-    send_message(bot, start)
-    logging.info(start)
     current_timestamp = int(time.time())
-    current_message = None
-    current_error = None
+    last_sent_message = None
     while True:
         try:
             response = get_api_answer(current_timestamp)
@@ -121,23 +119,28 @@ def main():
                 logging.info('Обновлений нет.')
                 continue
             message = parse_status(homeworks[0])
-            if message != current_message:
-                current_message = message
+            if message != last_sent_message:
+                last_sent_message = message
                 send_message(bot, message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-            if message != current_error:
+            if message != last_sent_message:
                 try:
                     send_message(bot, message)
                 except Exception as error:
                     logging.error(f'Нет доступа к телеграм {error}')
-                current_error = message
+                last_sent_message = message
         finally:
             time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        format='%(asctime)s - [%(levelname)s] - %(message)s',
+        level=logging.INFO,
+        stream=sys.stdout,
+    )
     try:
         main()
     except KeyboardInterrupt:
